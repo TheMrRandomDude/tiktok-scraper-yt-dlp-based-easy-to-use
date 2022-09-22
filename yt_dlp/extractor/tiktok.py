@@ -602,12 +602,12 @@ class TikTokUserIE(TikTokIE):
         api_url_template = f'https://m.tiktok.com/api/post/item_list/?aid=1988&count=21&secUid={secuid}&cursor='
         cursor = '0'
         videos = []
-        for i in itertools.count():
+        for i in itertools.count(1):
             api_url = api_url_template + cursor  # Cannot fetch this url in Python (fingerprinting?), so we use a headless browser
             await page.evaluate(signer)
             signature = await page.evaluate(f'() => {{ return window.byted_acrawler.sign({{url:"{api_url}"}}); }}')
             self.write_debug(f'Generated signature for {api_url} => {signature}')
-            api_url = api_url + f'&_signature={signature}'
+            api_url = f'{api_url}&_signature={signature}'
             self.write_debug(f'Fetching from {api_url}')
             self.to_screen(f'Downloading page {i}')
             response = await page.goto(api_url)
@@ -668,7 +668,7 @@ class TikTokUserIE(TikTokIE):
         aweme_detail = next((aweme for aweme in feed_list if str(aweme.get('aweme_id')) == aweme_id), None)
         if not aweme_detail:
             raise ExtractorError('Unable to find video in feed', video_id=aweme_id)
-        return aweme_detail['author']['sec_uid']
+        return traverse_obj(aweme_detail, ('author', 'sec_uid'))
 
     def _real_extract(self, url):
         user_name = self._match_id(url)
