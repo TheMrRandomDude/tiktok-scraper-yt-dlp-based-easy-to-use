@@ -1,8 +1,12 @@
+import asyncio
+import http.client
 import itertools
 import json
 import random
 import string
 import time
+
+from pyppeteer import launch
 
 from .common import InfoExtractor
 from ..compat import compat_urllib_parse_unquote, compat_urllib_parse_urlparse
@@ -555,10 +559,10 @@ class TikTokIE(TikTokBaseIE):
         raise ExtractorError('Video not available', video_id=video_id)
 
 
-class TikTokUserIE(TikTokBaseIE):
+class TikTokUserIE(TikTokIE):
     IE_NAME = 'tiktok:user'
     _VALID_URL = r'https?://(?:www\.)?tiktok\.com/@(?P<id>[\w\.-]+)/?(?:$|[#?])'
-    _WORKING = False
+    _WORKING = True
     _TESTS = [{
         'url': 'https://tiktok.com/@corgibobaa?lang=en',
         'playlist_mincount': 45,
@@ -588,71 +592,96 @@ class TikTokUserIE(TikTokBaseIE):
         'expected_warnings': ['Retrying']
     }]
 
-    r'''  # TODO: Fix by adding _signature to api_url
-    def _entries(self, webpage, user_id, username):
-        secuid = self._search_regex(r'\"secUid\":\"(?P<secUid>[^\"]+)', webpage, username)
-        verifyfp_cookie = self._get_cookies('https://www.tiktok.com').get('s_v_web_id')
-        if not verifyfp_cookie:
-            raise ExtractorError('Improper cookies (missing s_v_web_id).', expected=True)
-        api_url = f'https://m.tiktok.com/api/post/item_list/?aid=1988&cookie_enabled=true&count=30&verifyFp={verifyfp_cookie.value}&secUid={secuid}&cursor='
+    async def _video_entries_api(self, webpage, user_id, secuid, username):
+        http.client._MAXHEADERS = 150  # Python normally blocks responses with over 100 headers
+        signer = self._download_webpage('https://sf16-muse-va.ibytedtos.com/obj/rc-web-sdk-gcs/acrawler.js', headers={'User-Agent': 'User-Agent:Mozilla/5.0'}, video_id=None, note='Downloading signature function')
+        http.client._MAXHEADERS = 100
+        self.write_debug('Launching headless browser')
+        browser = await launch(headless=True)
+        page = await browser.newPage()
+        api_url_template = f'https://m.tiktok.com/api/post/item_list/?aid=1988&count=21&secUid={secuid}&cursor='
         cursor = '0'
-        for page in itertools.count():
-            data_json = self._download_json(api_url + cursor, username, note='Downloading Page %d' % page)
+        videos = []
+        for i in itertools.count():
+            api_url = api_url_template + cursor  # Cannot fetch this url in Python (fingerprinting?), so we use a headless browser
+            await page.evaluate(signer)
+            signature = await page.evaluate(f'() => {{ return window.byted_acrawler.sign({{url:"{api_url}"}}); }}')
+            self.write_debug(f'Generated signature for {api_url} => {signature}')
+            api_url = api_url + f'&_signature={signature}'
+            self.write_debug(f'Fetching from {api_url}')
+            self.to_screen(f'Downloading page {i}')
+            response = await page.goto(api_url)
+            data_json = await response.json()
             for video in data_json.get('itemList', []):
-                video_id = video['id']
+                video_id = video.get('id', '')
                 video_url = f'https://www.tiktok.com/@{user_id}/video/{video_id}'
-                yield self._url_result(video_url, 'TikTok', video_id, str_or_none(video.get('desc')))
+                videos.append(self.url_result(video_url, 'TikTok', video_id, str_or_none(video.get('desc'))))
             if not data_json.get('hasMore'):
                 break
             cursor = data_json['cursor']
-    '''
+        await browser.close()
+        return videos
 
-    def _video_entries_api(self, webpage, user_id, username):
-        query = {
-            'user_id': user_id,
-            'count': 21,
-            'max_cursor': 0,
-            'min_cursor': 0,
-            'retry_type': 'no_retry',
-            'device_id': ''.join(random.choice(string.digits) for _ in range(19)),  # Some endpoints don't like randomized device_id, so it isn't directly set in _call_api.
-        }
+    # def _video_entries_api_old(self, webpage, user_id, username):
+    #     query = {
+    #         'user_id': user_id,
+    #         'count': 21,
+    #         'max_cursor': 0,
+    #         'min_cursor': 0,
+    #         'retry_type': 'no_retry',
+    #         'device_id': ''.join(random.choice(string.digits) for _ in range(19)),  # Some endpoints don't like randomized device_id, so it isn't directly set in _call_api.
+    #     }
 
-        for page in itertools.count(1):
-            for retry in self.RetryManager():
-                try:
-                    post_list = self._call_api(
-                        'aweme/post', query, username, note=f'Downloading user video list page {page}',
-                        errnote='Unable to download user video list')
-                except ExtractorError as e:
-                    if isinstance(e.cause, json.JSONDecodeError) and e.cause.pos == 0:
-                        retry.error = e
-                        continue
-                    raise
-            yield from post_list.get('aweme_list', [])
-            if not post_list.get('has_more'):
-                break
-            query['max_cursor'] = post_list['max_cursor']
+    #     for page in itertools.count(1):
+    #         for retry in self.RetryManager():
+    #             try:
+    #                 post_list = self._call_api(
+    #                     'aweme/post', query, username, note=f'Downloading user video list page {page}',
+    #                     errnote='Unable to download user video list')
+    #             except ExtractorError as e:
+    #                 if isinstance(e.cause, json.JSONDecodeError) and e.cause.pos == 0:
+    #                     retry.error = e
+    #                     continue
+    #                 raise
+    #         yield from post_list.get('aweme_list', [])
+    #         if not post_list.get('has_more'):
+    #             break
+    #         query['max_cursor'] = post_list['max_cursor']
 
     def _entries_api(self, user_id, videos):
         for video in videos:
             yield {
-                **self._parse_aweme_video_app(video),
+                **self._extract_aweme_app(video['id']),
                 'extractor_key': TikTokIE.ie_key(),
                 'extractor': 'TikTok',
-                'webpage_url': f'https://tiktok.com/@{user_id}/video/{video["aweme_id"]}',
+                'webpage_url': video['url'],
             }
+
+    def _get_frontity_state(self, webpage):
+        return self._parse_json(self._search_regex(
+            r'(?s)<script[^>]+id=[\'"]__FRONTITY_CONNECT_STATE__[\'"][^>]*>([^<]+)</script>',
+            webpage, 'frontity data'), 'frontity data')
+
+    def _extract_secuid(self, aweme_id):
+        feed_list = self._call_api('feed', {'aweme_id': aweme_id}, aweme_id,
+                                   note='Downloading video feed', errnote='Unable to download video feed').get('aweme_list') or []
+        aweme_detail = next((aweme for aweme in feed_list if str(aweme.get('aweme_id')) == aweme_id), None)
+        if not aweme_detail:
+            raise ExtractorError('Unable to find video in feed', video_id=aweme_id)
+        return aweme_detail['author']['sec_uid']
 
     def _real_extract(self, url):
         user_name = self._match_id(url)
-        webpage = self._download_webpage(url, user_name, headers={
-            'User-Agent': 'facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)'
-        })
-        user_id = self._html_search_regex(r'snssdk\d*://user/profile/(\d+)', webpage, 'user ID', default=None) or user_name
+        webpage = self._download_webpage(f'https://www.tiktok.com/embed/@{user_name}', user_name, note='Downloading user embed')
+        state = self._get_frontity_state(webpage)
+        latest_video_id = traverse_obj(state, ('source', 'data', f'/embed/@{user_name}', 'videoList', 0, 'id'))
+        secuid = self._extract_secuid(latest_video_id)
 
-        videos = LazyList(self._video_entries_api(webpage, user_id, user_name))
+        result = asyncio.run(self._video_entries_api(webpage, user_name, secuid, user_name))
+        videos = LazyList(result)
         thumbnail = traverse_obj(videos, (0, 'author', 'avatar_larger', 'url_list', 0))
 
-        return self.playlist_result(self._entries_api(user_id, videos), user_id, user_name, thumbnail=thumbnail)
+        return self.playlist_result(self._entries_api(user_name, videos), user_name, user_name, thumbnail=thumbnail)
 
 
 class TikTokBaseListIE(TikTokBaseIE):
