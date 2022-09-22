@@ -610,7 +610,7 @@ class TikTokUserIE(TikTokIE):
             api_url = f'{api_url}&_signature={signature}'
             self.write_debug(f'Fetching from {api_url}')
             self.to_screen(f'Downloading page {i}')
-            response = await page.goto(api_url)
+            response = await page.goto(api_url, options={'timeout': 12000})
             data_json = await response.json()
             for video in data_json.get('itemList', []):
                 video_id = video.get('id', '')
