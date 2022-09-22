@@ -565,7 +565,7 @@ class TikTokUserIE(TikTokIE):
     _WORKING = True
     _TESTS = [{
         'url': 'https://tiktok.com/@therock?lang=en',
-        'playlist_mincount': 20,
+        'playlist_mincount': 25,
         'info_dict': {
             'id': '6745191554350760966',
             'title': 'therock',
@@ -573,17 +573,17 @@ class TikTokUserIE(TikTokIE):
         },
         'expected_warnings': ['Retrying']
     }, {
-        'url': 'https://www.tiktok.com/@6820838815978423302',
+        'url': 'https://www.tiktok.com/@pokemonlife22',
         'playlist_mincount': 5,
         'info_dict': {
             'id': '6820838815978423302',
-            'title': '6820838815978423302',
+            'title': 'pokemonlife22',
             'thumbnail': r're:https://.+_100x100\.jpeg'
         },
         'expected_warnings': ['Retrying']
     }, {
         'url': 'https://www.tiktok.com/@meme',
-        'playlist_mincount': 593,
+        'playlist_mincount': 25,
         'info_dict': {
             'id': '79005827461758976',
             'title': 'meme',
