@@ -564,12 +564,12 @@ class TikTokUserIE(TikTokIE):
     _VALID_URL = r'https?://(?:www\.)?tiktok\.com/@(?P<id>[\w\.-]+)/?(?:$|[#?])'
     _WORKING = True
     _TESTS = [{
-        'url': 'https://tiktok.com/@corgibobaa?lang=en',
-        'playlist_mincount': 45,
+        'url': 'https://tiktok.com/@therock?lang=en',
+        'playlist_mincount': 20,
         'info_dict': {
-            'id': '6935371178089399301',
-            'title': 'corgibobaa',
-            'thumbnail': r're:https://.+_1080x1080\.webp'
+            'id': '6745191554350760966',
+            'title': 'therock',
+            'thumbnail': r're:https://.+_100x100\.jpeg'
         },
         'expected_warnings': ['Retrying']
     }, {
@@ -578,7 +578,7 @@ class TikTokUserIE(TikTokIE):
         'info_dict': {
             'id': '6820838815978423302',
             'title': '6820838815978423302',
-            'thumbnail': r're:https://.+_1080x1080\.webp'
+            'thumbnail': r're:https://.+_100x100\.jpeg'
         },
         'expected_warnings': ['Retrying']
     }, {
@@ -587,12 +587,12 @@ class TikTokUserIE(TikTokIE):
         'info_dict': {
             'id': '79005827461758976',
             'title': 'meme',
-            'thumbnail': r're:https://.+_1080x1080\.webp'
+            'thumbnail': r're:https://.+_100x100\.jpeg'
         },
         'expected_warnings': ['Retrying']
     }]
 
-    async def _video_entries_api(self, webpage, user_id, secuid, username):
+    async def _video_entries_api(self, user_name, secuid):
         http.client._MAXHEADERS = 150  # Python normally blocks responses with over 100 headers
         signer = self._download_webpage('https://sf16-muse-va.ibytedtos.com/obj/rc-web-sdk-gcs/acrawler.js', headers={'User-Agent': 'User-Agent:Mozilla/5.0'}, video_id=None, note='Downloading signature function')
         http.client._MAXHEADERS = 100
@@ -614,7 +614,7 @@ class TikTokUserIE(TikTokIE):
             data_json = await response.json()
             for video in data_json.get('itemList', []):
                 video_id = video.get('id', '')
-                video_url = f'https://www.tiktok.com/@{user_id}/video/{video_id}'
+                video_url = f'https://www.tiktok.com/@{user_name}/video/{video_id}'
                 videos.append(self.url_result(video_url, 'TikTok', video_id, str_or_none(video.get('desc'))))
             if not data_json.get('hasMore'):
                 break
@@ -648,7 +648,7 @@ class TikTokUserIE(TikTokIE):
     #             break
     #         query['max_cursor'] = post_list['max_cursor']
 
-    def _entries_api(self, user_id, videos):
+    def _entries_api(self, videos):
         for video in videos:
             yield {
                 **self._extract_aweme_app(video['id']),
@@ -657,10 +657,12 @@ class TikTokUserIE(TikTokIE):
                 'webpage_url': video['url'],
             }
 
-    def _get_frontity_state(self, webpage):
-        return self._parse_json(self._search_regex(
-            r'(?s)<script[^>]+id=[\'"]__FRONTITY_CONNECT_STATE__[\'"][^>]*>([^<]+)</script>',
-            webpage, 'frontity data'), 'frontity data')
+    def _get_frontity_state(self, webpage, user_name):
+        return traverse_obj(
+            self._parse_json(self._search_regex(
+                r'(?s)<script[^>]+id=[\'"]__FRONTITY_CONNECT_STATE__[\'"][^>]*>([^<]+)</script>',
+                webpage, 'frontity data'), 'frontity data'),
+            ('source', 'data', f'/embed/@{user_name}'))
 
     def _extract_secuid(self, aweme_id):
         feed_list = self._call_api('feed', {'aweme_id': aweme_id}, aweme_id,
@@ -673,15 +675,17 @@ class TikTokUserIE(TikTokIE):
     def _real_extract(self, url):
         user_name = self._match_id(url)
         webpage = self._download_webpage(f'https://www.tiktok.com/embed/@{user_name}', user_name, note='Downloading user embed')
-        state = self._get_frontity_state(webpage)
-        latest_video_id = traverse_obj(state, ('source', 'data', f'/embed/@{user_name}', 'videoList', 0, 'id'))
+        state = self._get_frontity_state(webpage, user_name)
+
+        latest_video_id = traverse_obj(state, ('videoList', 0, 'id'))
         secuid = self._extract_secuid(latest_video_id)
+        user_id = traverse_obj(state, ('userInfo', 'id'))
+        thumbnail = traverse_obj(state, ('userInfo', 'avatarThumbUrl'))
 
-        result = asyncio.run(self._video_entries_api(webpage, user_name, secuid, user_name))
+        result = asyncio.run(self._video_entries_api(user_name, secuid))
         videos = LazyList(result)
-        thumbnail = traverse_obj(videos, (0, 'author', 'avatar_larger', 'url_list', 0))
 
-        return self.playlist_result(self._entries_api(user_name, videos), user_name, user_name, thumbnail=thumbnail)
+        return self.playlist_result(self._entries_api(videos), user_id, user_name, thumbnail=thumbnail)
 
 
 class TikTokBaseListIE(TikTokBaseIE):
