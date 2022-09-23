@@ -569,7 +569,14 @@ class TikTokUserIE(TikTokIE):
         'info_dict': {
             'id': '6745191554350760966',
             'title': 'therock',
-            'thumbnail': r're:https://.+_100x100\.jpeg'
+            'thumbnail': r're:https://.+_100x100\.jpeg',
+            'signature': str,
+            'follower_count': int,
+            'verified': True,
+            'private': bool,
+            'following_count': int,
+            'nickname': str,
+            'heart_count': int
         },
         'expected_warnings': ['Retrying']
     }, {
@@ -578,7 +585,14 @@ class TikTokUserIE(TikTokIE):
         'info_dict': {
             'id': '6820838815978423302',
             'title': 'pokemonlife22',
-            'thumbnail': r're:https://.+_100x100\.jpeg'
+            'thumbnail': r're:https://.+_100x100\.jpeg',
+            'signature': str,
+            'follower_count': int,
+            'verified': bool,
+            'private': bool,
+            'following_count': int,
+            'nickname': str,
+            'heart_count': int
         },
         'expected_warnings': ['Retrying']
     }, {
@@ -587,7 +601,14 @@ class TikTokUserIE(TikTokIE):
         'info_dict': {
             'id': '79005827461758976',
             'title': 'meme',
-            'thumbnail': r're:https://.+_100x100\.jpeg'
+            'thumbnail': r're:https://.+_100x100\.jpeg',
+            'signature': str,
+            'follower_count': int,
+            'verified': True,
+            'private': bool,
+            'following_count': int,
+            'nickname': str,
+            'heart_count': int
         },
         'expected_warnings': ['Retrying']
     }]
@@ -676,16 +697,27 @@ class TikTokUserIE(TikTokIE):
         user_name = self._match_id(url)
         webpage = self._download_webpage(f'https://www.tiktok.com/embed/@{user_name}', user_name, note='Downloading user embed')
         state = self._get_frontity_state(webpage, user_name)
+        user_info = state.get('userInfo')
 
         latest_video_id = traverse_obj(state, ('videoList', 0, 'id'))
         secuid = self._extract_secuid(latest_video_id)
-        user_id = traverse_obj(state, ('userInfo', 'id'))
-        thumbnail = traverse_obj(state, ('userInfo', 'avatarThumbUrl'))
+        user_id = user_info.get('id')
 
         result = asyncio.run(self._video_entries_api(user_name, secuid))
         videos = LazyList(result)
 
-        return self.playlist_result(self._entries_api(videos), user_id, user_name, thumbnail=thumbnail)
+        return self.playlist_result(
+            self._entries_api(videos),
+            user_id, user_name,
+            nickname=user_info.get('nickname', user_name),
+            thumbnail=user_info.get('avatarThumbUrl', ''),
+            verified=user_info.get('verified', False),
+            follower_count=user_info.get('followerCount', 0),
+            following_count=user_info.get('followingCount', 0),
+            heart_count=user_info.get('heartCount', 0),
+            signature=user_info.get('signature', ''),
+            private=user_info.get('privateAccount', False)
+        )
 
 
 class TikTokBaseListIE(TikTokBaseIE):
