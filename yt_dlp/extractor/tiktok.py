@@ -576,7 +576,7 @@ class TikTokUserIE(TikTokIE):
             'private': bool,
             'following_count': int,
             'nickname': str,
-            'heart_count': int
+            'like_count': int
         },
         'expected_warnings': ['Retrying']
     }, {
@@ -592,7 +592,7 @@ class TikTokUserIE(TikTokIE):
             'private': bool,
             'following_count': int,
             'nickname': str,
-            'heart_count': int
+            'like_count': int
         },
         'expected_warnings': ['Retrying']
     }, {
@@ -608,7 +608,7 @@ class TikTokUserIE(TikTokIE):
             'private': bool,
             'following_count': int,
             'nickname': str,
-            'heart_count': int
+            'like_count': int
         },
         'expected_warnings': ['Retrying']
     }]
@@ -714,7 +714,7 @@ class TikTokUserIE(TikTokIE):
             verified=user_info.get('verified', False),
             follower_count=user_info.get('followerCount', 0),
             following_count=user_info.get('followingCount', 0),
-            heart_count=user_info.get('heartCount', 0),
+            like_count=user_info.get('heartCount', 0),
             signature=user_info.get('signature', ''),
             private=user_info.get('privateAccount', False)
         )
