@@ -10,8 +10,8 @@ from playwright.async_api import async_playwright
 from base64 import b64encode
 from urllib.parse import urlencode
 
-from Crypto.Cipher import AES
-from Crypto.Util.Padding import pad
+from Cryptodome.Cipher import AES
+from Cryptodome.Util.Padding import pad
 
 from .common import InfoExtractor
 from ..compat import compat_urllib_parse_unquote, compat_urllib_parse_urlparse
