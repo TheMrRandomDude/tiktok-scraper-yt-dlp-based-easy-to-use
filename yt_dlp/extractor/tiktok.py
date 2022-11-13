@@ -624,7 +624,7 @@ class TikTokUserIE(TikTokIE):
             'app_name': 'tiktok_web',
             'channel': 'tiktok_web',
             'device_platform': 'web_pc',
-            'device_id': '7146008526226949675',
+            'device_id': ''.join([random.choice(string.digits) for _ in range(16)]),
             'region': 'US',
             'priority_region': '',
             'os': 'windows',
