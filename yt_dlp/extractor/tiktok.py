@@ -1,12 +1,17 @@
 import asyncio
-import http.client
 import itertools
 import json
 import random
 import string
 import time
 
-from pyppeteer import launch
+from playwright.async_api import async_playwright
+
+from base64 import b64encode
+from urllib.parse import urlencode
+
+from Crypto.Cipher import AES
+from Crypto.Util.Padding import pad
 
 from .common import InfoExtractor
 from ..compat import compat_urllib_parse_unquote, compat_urllib_parse_urlparse
@@ -613,34 +618,73 @@ class TikTokUserIE(TikTokIE):
         'expected_warnings': ['Retrying']
     }]
 
+    def _generate_x_tt_params(self, secuid, cursor):
+        payload = {
+            'aid': '1988',
+            'app_name': 'tiktok_web',
+            'channel': 'tiktok_web',
+            'device_platform': 'web_pc',
+            'device_id': '7146008526226949675',
+            'region': 'US',
+            'priority_region': '',
+            'os': 'windows',
+            'referer': '',
+            'root_referer': 'undefined',
+            'cookie_enabled': 'true',
+            'screen_width': '1920',
+            'screen_height': '1080',
+            'browser_language': 'en-US',
+            'browser_platform': 'Win32',
+            'browser_name': 'Mozilla',
+            'browser_version': '5.0 (Windows)',
+            'browser_online': 'true',
+            'verifyFp': 'undefined',
+            'app_language': 'en',
+            'webcast_language': 'en',
+            'tz_name': 'America/Chicago',
+            'is_page_visible': 'true',
+            'focus_state': 'false',
+            'is_fullscreen': 'false',
+            'history_len': '1',
+            'from_page': 'user',
+            'secUid': secuid,
+            'count': '30',
+            'cursor': cursor,
+            'language': 'en',
+            'userId': 'undefined',
+            'is_encryption': '1'
+        }
+        # https://github.com/davidteather/TikTok-Api/issues/899#issuecomment-1175439842
+        s = urlencode(payload, doseq=True, quote_via=lambda s, *_: s)
+        key = "webapp1.0+202106".encode("utf-8")
+        cipher = AES.new(key, AES.MODE_CBC, key)
+        ct_bytes = cipher.encrypt(pad(s.encode("utf-8"), AES.block_size))
+        return b64encode(ct_bytes).decode("utf-8")
+
     async def _video_entries_api(self, user_name, secuid):
-        http.client._MAXHEADERS = 150  # Python normally blocks responses with over 100 headers
-        signer = self._download_webpage('https://sf16-muse-va.ibytedtos.com/obj/rc-web-sdk-gcs/acrawler.js', headers={'User-Agent': 'User-Agent:Mozilla/5.0'}, video_id=None, note='Downloading signature function')
-        http.client._MAXHEADERS = 100
-        self.write_debug('Launching headless browser')
-        browser = await launch(headless=True)
-        page = await browser.newPage()
-        api_url_template = f'https://m.tiktok.com/api/post/item_list/?aid=1988&count=21&secUid={secuid}&cursor='
         cursor = '0'
         videos = []
-        for i in itertools.count(1):
-            api_url = api_url_template + cursor  # Cannot fetch this url in Python (fingerprinting?), so we use a headless browser
-            await page.evaluate(signer)
-            signature = await page.evaluate(f'() => {{ return window.byted_acrawler.sign({{url:"{api_url}"}}); }}')
-            self.write_debug(f'Generated signature for {api_url} => {signature}')
-            api_url = f'{api_url}&_signature={signature}'
-            self.write_debug(f'Fetching from {api_url}')
-            self.to_screen(f'Downloading page {i}')
-            response = await page.goto(api_url, options={'timeout': 12000})
-            data_json = await response.json()
-            for video in data_json.get('itemList', []):
-                video_id = video.get('id', '')
-                video_url = f'https://www.tiktok.com/@{user_name}/video/{video_id}'
-                videos.append(self.url_result(video_url, 'TikTok', video_id, str_or_none(video.get('desc'))))
-            if not data_json.get('hasMore'):
-                break
-            cursor = data_json['cursor']
-        await browser.close()
+        self.write_debug('Launching headless browser')
+        async with async_playwright() as p:
+            browser = await p.firefox.launch()
+            page = await browser.new_page()
+            for i in itertools.count(1):
+                x_tt_params = self._generate_x_tt_params(secuid, cursor)
+                self.to_screen(f'Downloading page {i}')
+                self.write_debug(f'x-tt-params: {x_tt_params}')
+                await page.set_extra_http_headers({
+                    'x-tt-params': x_tt_params
+                })
+                response = await page.goto('https://us.tiktok.com/api/post/item_list/?aid=1988', timeout=12000)
+                data_json = await response.json()
+                for video in data_json.get('itemList', []):
+                    video_id = video.get('id', '')
+                    video_url = f'https://www.tiktok.com/@{user_name}/video/{video_id}'
+                    videos.append(self.url_result(video_url, 'TikTok', video_id, str_or_none(video.get('desc'))))
+                if not data_json.get('hasMore'):
+                    break
+                cursor = data_json['cursor']
+            await browser.close()
         return videos
 
     # def _video_entries_api_old(self, webpage, user_id, username):

@@ -29,8 +29,8 @@ jobs:
       uses: actions/setup-python@v4
       with:
         python-version: ${{ matrix.python-version }}
-    - name: Install pyppeteer
-      run: pip install pyppeteer
+    - name: Install playwright
+      run: pip install playwright
     - name: Install pytest
       run: pip install pytest
     - name: Run tests

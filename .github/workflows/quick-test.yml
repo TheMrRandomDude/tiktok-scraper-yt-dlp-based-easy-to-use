@@ -15,7 +15,7 @@ jobs:
       with:
         python-version: 3.9
     - name: Install test requirements
-      run: pip install pytest pycryptodomex pyppeteer
+      run: pip install pytest pycryptodomex playwright
     - name: Run tests
       run: ./devscripts/run_tests.sh core
   flake8:
@@ -28,8 +28,8 @@ jobs:
       uses: actions/setup-python@v4
       with:
         python-version: 3.9
-    - name: Install pyppeteer
-      run: pip install pyppeteer
+    - name: Install playwright
+      run: pip install playwright
     - name: Install flake8
       run: pip install flake8
     - name: Make lazy extractors
