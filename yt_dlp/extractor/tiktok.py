@@ -716,11 +716,18 @@ class TikTokUserIE(TikTokIE):
     def _entries_api(self, videos):
         for video in videos:
             yield {
-                **self._extract_aweme_app(video['id']),
+                **self._try_extract(video['id']),
                 'extractor_key': TikTokIE.ie_key(),
                 'extractor': 'TikTok',
                 'webpage_url': video['url'],
             }
+
+    def _try_extract(self, id):
+        try:
+            return self._extract_aweme_app(id)
+        except ExtractorError as e:
+            self.report_warning(e)
+            return {}
 
     def _get_frontity_state(self, webpage, user_name):
         return traverse_obj(
