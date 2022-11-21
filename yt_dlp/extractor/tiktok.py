@@ -616,13 +616,13 @@ class TikTokUserIE(TikTokIE):
         'expected_warnings': ['Retrying']
     }]
 
-    def _generate_x_tt_params(self, secuid, cursor):
+    def _generate_x_tt_params(self, secUid, device_id, cursor):
         payload = {
             'aid': '1988',
             'app_name': 'tiktok_web',
             'channel': 'tiktok_web',
             'device_platform': 'web_pc',
-            'device_id': ''.join([random.choice(string.digits) for _ in range(16)]),
+            'device_id': device_id,
             'region': 'US',
             'priority_region': '',
             'os': 'windows',
@@ -645,7 +645,7 @@ class TikTokUserIE(TikTokIE):
             'is_fullscreen': 'false',
             'history_len': '7',
             'from_page': 'user',
-            'secUid': secuid,
+            'secUid': secUid,
             'count': '30',
             'cursor': cursor,
             'language': 'en',
@@ -659,11 +659,12 @@ class TikTokUserIE(TikTokIE):
         ct_bytes = cipher.encrypt(pad(s.encode("utf-8"), AES.block_size))
         return b64encode(ct_bytes).decode("utf-8")
 
-    def _video_entries_api(self, user_name, secuid):
+    def _video_entries_api(self, user_name, secUid):
         cursor = '0'
         videos = []
         author = []
         max = self._downloader.params.get('playlistend', -1)
+        device_id = ''.join([random.choice(string.digits) for _ in range(16)])
         self.write_debug('Launching headless browser')
         with sync_playwright() as p:
             browser = p.firefox.launch()
@@ -671,25 +672,10 @@ class TikTokUserIE(TikTokIE):
             page.goto('https://tiktok.com', wait_until='load')
             time.sleep(2)  # it just works ok
             for i in itertools.count(1):
-                x_tt_params = self._generate_x_tt_params(secuid, cursor)
+                x_tt_params = self._generate_x_tt_params(secUid, device_id, cursor)
                 self.to_screen(f'Downloading page {i}')
                 self.write_debug(f'x-tt-params: {x_tt_params}')
-                # page.set_extra_http_headers({
-                #     'Accept': '*/*',
-                #     'Accept-Encoding': 'gzip-deflate-br',
-                #     'DNT': '1',
-                #     'Origin': 'https://www.tiktok.com',
-                #     'sec-fetch-dest': 'empty',
-                #     'sec-fetch-mode': 'cors',
-                #     'sec-fetch-site': 'same-site',
-                #     'referer': 'https://www.tiktok.com/',
-                #     'x-tt-params': x_tt_params,
-                #     'te': 'trailers'
-                # })
-                # response = page.goto('https://us.tiktok.com/api/post/item_list/?aid=1988&app_language=en&app_name=tiktok_web&browser_language=en-US&browser_name=Mozilla&browser_online=true&browser_platform=Win32&browser_version=5.0%20%28Windows%29&channel=tiktok_web&cookie_enabled=true&device_id=7146008526226949675&device_platform=web_pc&focus_state=true&from_page=user&history_len=7&is_fullscreen=false&is_page_visible=true&os=windows&priority_region=&referer=&region=US&screen_height=1080&screen_width=1920', timeout=12000)
-                # print(response.request.headers)
-                # data_json = response.json()
-                data_json = page.evaluate('([x]) => fetch("https://us.tiktok.com/api/post/item_list/?aid=1988&app_language=en&app_name=tiktok_web&browser_language=en-US&browser_name=Mozilla&browser_online=true&browser_platform=Win32&browser_version=5.0%20%28Windows%29&channel=tiktok_web&cookie_enabled=true&device_id=7146008526226949675&device_platform=web_pc&focus_state=true&from_page=user&history_len=7&is_fullscreen=false&is_page_visible=true&os=windows&priority_region=&referer=&region=US&screen_height=1080&screen_width=1920", { headers: { "x-tt-params": x } }).then(res => res.json())', [x_tt_params])
+                data_json = page.evaluate('([x, d]) => fetch(`https://us.tiktok.com/api/post/item_list/?aid=1988&app_language=en&app_name=tiktok_web&browser_language=en-US&browser_name=Mozilla&browser_online=true&browser_platform=Win32&browser_version=5.0%20%28Windows%29&channel=tiktok_web&cookie_enabled=true&device_id=${d}&device_platform=web_pc&focus_state=true&from_page=user&history_len=7&is_fullscreen=false&is_page_visible=true&os=windows&priority_region=&referer=&region=US&screen_height=1080&screen_width=1920`, { headers: { "x-tt-params": x } }).then(res => res.json())', [x_tt_params, device_id])
                 for video in data_json.get('itemList', []):
                     video_id = video.get('id', '')
                     if len(videos) == 0:
@@ -706,32 +692,6 @@ class TikTokUserIE(TikTokIE):
                 cursor = data_json['cursor']
             browser.close()
         return author, videos
-
-    # def _video_entries_api_old(self, webpage, user_id, username):
-    #     query = {
-    #         'user_id': user_id,
-    #         'count': 21,
-    #         'max_cursor': 0,
-    #         'min_cursor': 0,
-    #         'retry_type': 'no_retry',
-    #         'device_id': ''.join(random.choice(string.digits) for _ in range(19)),  # Some endpoints don't like randomized device_id, so it isn't directly set in _call_api.
-    #     }
-
-    #     for page in itertools.count(1):
-    #         for retry in self.RetryManager():
-    #             try:
-    #                 post_list = self._call_api(
-    #                     'aweme/post', query, username, note=f'Downloading user video list page {page}',
-    #                     errnote='Unable to download user video list')
-    #             except ExtractorError as e:
-    #                 if isinstance(e.cause, json.JSONDecodeError) and e.cause.pos == 0:
-    #                     retry.error = e
-    #                     continue
-    #                 raise
-    #         yield from post_list.get('aweme_list', [])
-    #         if not post_list.get('has_more'):
-    #             break
-    #         query['max_cursor'] = post_list['max_cursor']
 
     def _entries_api(self, videos):
         for video in videos:
@@ -756,7 +716,7 @@ class TikTokUserIE(TikTokIE):
                 webpage, 'frontity data'), 'frontity data'),
             ('source', 'data', f'/embed/@{user_name}'))
 
-    def _extract_secuid(self, aweme_id):
+    def _extract_secUid(self, aweme_id):
         feed_list = self._call_api('feed', {'aweme_id': aweme_id}, aweme_id,
                                    note='Downloading video feed', errnote='Unable to download video feed').get('aweme_list') or []
         aweme_detail = next((aweme for aweme in feed_list if str(aweme.get('aweme_id')) == aweme_id), None)
@@ -766,23 +726,22 @@ class TikTokUserIE(TikTokIE):
 
     def _real_extract(self, url):
         user_name = self._match_id(url)
-
         user_info = []
-        secuid = ''
+        secUid = ''
 
         try:
             webpage = self._download_webpage(f'https://www.tiktok.com/embed/@{user_name}', user_name, note='Downloading user embed')
             state = self._get_frontity_state(webpage, user_name)
             user_info = state.get('userInfo')
             latest_video_id = traverse_obj(state, ('videoList', 0, 'id'))
-            secuid = self._extract_secuid(latest_video_id)
+            secUid = self._extract_secUid(latest_video_id)
         except ExtractorError as e:
-            secuid = self._downloader.params.get('videopassword', '')
-            if secuid is None:
+            secUid = self._downloader.params.get('videopassword', '')
+            if secUid is None:
                 raise e
-            self.report_warning(f'{e}; secuid supplied, trying anyway')
+            self.report_warning(f'{e}; secUid supplied, trying anyway')
 
-        author, response = self._video_entries_api(user_name, secuid)
+        author, response = self._video_entries_api(user_name, secUid)
         if author.get('uniqueId', '') == user_name:
             user_info = author
             user_info['avatarThumbUrl'] = user_info['avatarLarger']
