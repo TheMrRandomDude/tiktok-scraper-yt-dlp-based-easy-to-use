@@ -685,11 +685,11 @@ class TikTokUserIE(TikTokIE):
                     if max > -1 and len(videos) >= max:
                         break
                 else:
+                    if not data_json.get('hasMore'):
+                        break
+                    cursor = data_json['cursor']
                     continue
                 break
-                if not data_json.get('hasMore'):
-                    break
-                cursor = data_json['cursor']
             browser.close()
         return author, videos
 
