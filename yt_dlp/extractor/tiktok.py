@@ -1,11 +1,10 @@
-import asyncio
 import itertools
 import json
 import random
 import string
 import time
 
-from playwright.async_api import async_playwright
+from playwright.sync_api import sync_playwright
 
 from base64 import b64encode
 from urllib.parse import urlencode
@@ -645,7 +644,7 @@ class TikTokUserIE(TikTokIE):
             'is_page_visible': 'true',
             'focus_state': 'false',
             'is_fullscreen': 'false',
-            'history_len': '1',
+            'history_len': '7',
             'from_page': 'user',
             'secUid': secuid,
             'count': '30',
@@ -661,31 +660,53 @@ class TikTokUserIE(TikTokIE):
         ct_bytes = cipher.encrypt(pad(s.encode("utf-8"), AES.block_size))
         return b64encode(ct_bytes).decode("utf-8")
 
-    async def _video_entries_api(self, user_name, secuid):
+    def _video_entries_api(self, user_name, secuid):
         cursor = '0'
         videos = []
+        author = []
+        max = self._downloader.params.get('playlistend', -1)
         self.write_debug('Launching headless browser')
-        async with async_playwright() as p:
-            browser = await p.firefox.launch()
-            page = await browser.new_page()
+        with sync_playwright() as p:
+            browser = p.firefox.launch()
+            page = browser.new_page()
+            page.goto('https://tiktok.com', wait_until='load')
+            time.sleep(2)  # it just works ok
             for i in itertools.count(1):
                 x_tt_params = self._generate_x_tt_params(secuid, cursor)
                 self.to_screen(f'Downloading page {i}')
                 self.write_debug(f'x-tt-params: {x_tt_params}')
-                await page.set_extra_http_headers({
-                    'x-tt-params': x_tt_params
-                })
-                response = await page.goto('https://us.tiktok.com/api/post/item_list/?aid=1988', timeout=12000)
-                data_json = await response.json()
+                # page.set_extra_http_headers({
+                #     'Accept': '*/*',
+                #     'Accept-Encoding': 'gzip-deflate-br',
+                #     'DNT': '1',
+                #     'Origin': 'https://www.tiktok.com',
+                #     'sec-fetch-dest': 'empty',
+                #     'sec-fetch-mode': 'cors',
+                #     'sec-fetch-site': 'same-site',
+                #     'referer': 'https://www.tiktok.com/',
+                #     'x-tt-params': x_tt_params,
+                #     'te': 'trailers'
+                # })
+                # response = page.goto('https://us.tiktok.com/api/post/item_list/?aid=1988&app_language=en&app_name=tiktok_web&browser_language=en-US&browser_name=Mozilla&browser_online=true&browser_platform=Win32&browser_version=5.0%20%28Windows%29&channel=tiktok_web&cookie_enabled=true&device_id=7146008526226949675&device_platform=web_pc&focus_state=true&from_page=user&history_len=7&is_fullscreen=false&is_page_visible=true&os=windows&priority_region=&referer=&region=US&screen_height=1080&screen_width=1920', timeout=12000)
+                # print(response.request.headers)
+                # data_json = response.json()
+                data_json = page.evaluate('([x]) => fetch("https://us.tiktok.com/api/post/item_list/?aid=1988&app_language=en&app_name=tiktok_web&browser_language=en-US&browser_name=Mozilla&browser_online=true&browser_platform=Win32&browser_version=5.0%20%28Windows%29&channel=tiktok_web&cookie_enabled=true&device_id=7146008526226949675&device_platform=web_pc&focus_state=true&from_page=user&history_len=7&is_fullscreen=false&is_page_visible=true&os=windows&priority_region=&referer=&region=US&screen_height=1080&screen_width=1920", { headers: { "x-tt-params": x } }).then(res => res.json())', [x_tt_params])
                 for video in data_json.get('itemList', []):
                     video_id = video.get('id', '')
+                    if len(videos) == 0:
+                        author = video.get('author', [])
                     video_url = f'https://www.tiktok.com/@{user_name}/video/{video_id}'
                     videos.append(self.url_result(video_url, 'TikTok', video_id, str_or_none(video.get('desc'))))
+                    if max > -1 and len(videos) >= max:
+                        break
+                else:
+                    continue
+                break
                 if not data_json.get('hasMore'):
                     break
                 cursor = data_json['cursor']
-            await browser.close()
-        return videos
+            browser.close()
+        return author, videos
 
     # def _video_entries_api_old(self, webpage, user_id, username):
     #     query = {
@@ -746,20 +767,32 @@ class TikTokUserIE(TikTokIE):
 
     def _real_extract(self, url):
         user_name = self._match_id(url)
-        webpage = self._download_webpage(f'https://www.tiktok.com/embed/@{user_name}', user_name, note='Downloading user embed')
-        state = self._get_frontity_state(webpage, user_name)
-        user_info = state.get('userInfo')
 
-        latest_video_id = traverse_obj(state, ('videoList', 0, 'id'))
-        secuid = self._extract_secuid(latest_video_id)
-        user_id = user_info.get('id')
+        user_info = []
+        secuid = ''
 
-        result = asyncio.run(self._video_entries_api(user_name, secuid))
-        videos = LazyList(result)
+        try:
+            webpage = self._download_webpage(f'https://www.tiktok.com/embed/@{user_name}', user_name, note='Downloading user embed')
+            state = self._get_frontity_state(webpage, user_name)
+            user_info = state.get('userInfo')
+            latest_video_id = traverse_obj(state, ('videoList', 0, 'id'))
+            secuid = self._extract_secuid(latest_video_id)
+        except ExtractorError as e:
+            secuid = self._downloader.params.get('videopassword', '')
+            if secuid is None:
+                raise e
+            self.report_warning(f'{e}; secuid supplied, trying anyway')
+
+        author, response = self._video_entries_api(user_name, secuid)
+        if author.get('uniqueId', '') == user_name:
+            user_info = author
+            user_info['avatarThumbUrl'] = user_info['avatarLarger']
+
+        videos = LazyList(response)
 
         return self.playlist_result(
             self._entries_api(videos),
-            user_id, user_name,
+            user_info.get('id'), user_name,
             nickname=user_info.get('nickname', user_name),
             thumbnail=user_info.get('avatarThumbUrl', ''),
             verified=user_info.get('verified', False),
