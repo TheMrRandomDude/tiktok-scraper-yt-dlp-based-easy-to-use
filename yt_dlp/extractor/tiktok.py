@@ -663,7 +663,7 @@ class TikTokUserIE(TikTokIE):
         cursor = '0'
         videos = []
         author = []
-        max = self._downloader.params.get('playlistend', -1)
+        max = self._downloader.params.get('playlistend') or -1
         device_id = ''.join([random.choice(string.digits) for _ in range(16)])
         self.write_debug('Launching headless browser')
         with sync_playwright() as p:
