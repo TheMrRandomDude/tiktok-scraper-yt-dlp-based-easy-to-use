@@ -754,8 +754,10 @@ class TikTokUserIE(TikTokIE):
             webpage = self._download_webpage(f'https://www.tiktok.com/embed/@{user_name}', user_name, note='Downloading user embed')
             state = self._get_frontity_state(webpage, user_name)
             user_info = state.get('userInfo')
-            latest_video_id = traverse_obj(state, ('videoList', 0, 'id'))
-            secUid = self._extract_secUid(latest_video_id)
+            latest_video = next((video for video in state.get('videoList') if len(video.get('playAddr')) > 0), None)
+            if latest_video:
+                latest_video_id = latest_video.get('id')
+                secUid = self._extract_secUid(latest_video_id)
         except ExtractorError as e:
             secUid = self._downloader.params.get('videopassword', '')
             if secUid is None:
