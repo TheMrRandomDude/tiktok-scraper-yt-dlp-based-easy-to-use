@@ -1767,6 +1767,7 @@ The following extractors use this feature:
 #### tiktok
 * `app_version`: App version to call mobile APIs with - should be set along with `manifest_app_version`, e.g. `20.2.1`
 * `manifest_app_version`: Numeric app version to call mobile APIs with, e.g. `221`
+* `secuid`: User identifer for user extraction required if this cannot be automatically extracted, find in `/api/user/detail` response on TikTok profiles (use browser inspect tools)
 
 #### rokfinchannel
 * `tab`: Which tab to download - one of `new`, `top`, `videos`, `podcasts`, `streams`, `stacks`

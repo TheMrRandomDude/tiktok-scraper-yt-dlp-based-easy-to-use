@@ -759,8 +759,8 @@ class TikTokUserIE(TikTokIE):
                 latest_video_id = latest_video.get('id')
                 secUid = self._extract_secUid(latest_video_id)
         except ExtractorError as e:
-            secUid = self._downloader.params.get('videopassword', '')
-            if secUid is None:
+            secUid = self._configuration_arg('secuid', [''], ie_key=TikTokIE)[0]
+            if len(secUid) == 0:
                 raise e
             self.report_warning(f'{e}; secUid supplied, trying anyway')
 
