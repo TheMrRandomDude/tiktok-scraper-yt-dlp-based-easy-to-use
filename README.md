@@ -1,3 +1,36 @@
+Hello, this is a temporary fix using Playwright. yt-dlp's devs still haven't rolled a solution in yt-dlp's self-contained philosophy, so while we wait for that we can use redraskal's solution.
+
+The reason I forked it is that I ran into some issues, the installation wasn't explained, and even after installing I found I had a few issues, which I fixed in this fork. That's it, enjoy.
+
+
+**INSTALLATION GUIDE:**
+
+I only wrote this for Debian/Ubuntu, as I only use those two distros, but I imagine it's basically the same for other distros, just use the package manager that comes with your distro.
+
+```
+sudo apt install git python3 python3-pip
+git clone https://github.com/TheMrRandomDude/yt-dlp-tiktokworks
+cd yt-dlp-tiktokworks
+git checkout fix/tiktok-user
+sudo pip3 install -r requirements.txt
+python3 -m pip install -U pyinstaller
+python3 devscripts/make_lazy_extractors.py
+python3 pyinst.py
+playwright install
+```
+That's it! Scrape using yt-dlp.sh
+
+_p.s. for more experienced users, I know you cringed there at pip3 package being installed as sudo, but playwright threw weird issues and I found out that sudo just works, so I didn't bother fixing it. You should probably be running this all in a VM or env to not taint your OS with all these packages._
+
+Thanks for reading and enjoy.
+
+_____________________________________________________
+_____________________________________________________
+_____________________________________________________
+_____________________________________________________
+_____________________________________________________
+
+
 <!-- MANPAGE: BEGIN EXCLUDED SECTION -->
 <div align="center">
 
