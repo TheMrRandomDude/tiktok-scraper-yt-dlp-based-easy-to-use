@@ -9,8 +9,8 @@ I only wrote this for Debian/Ubuntu, as I only use those two distros, but I imag
 
 ```
 sudo apt install git python3 python3-pip
-git clone https://github.com/TheMrRandomDude/yt-dlp-tiktokworks
-cd yt-dlp-tiktokworks
+git clone https://github.com/TheMrRandomDude/yt-dlp-tiktok-scraper-fixed
+cd yt-dlp-tiktok-scraper-fixed
 git checkout fix/tiktok-user
 sudo pip3 install -r requirements.txt
 python3 -m pip install -U pyinstaller
