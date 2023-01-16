@@ -694,7 +694,7 @@ class TikTokUserIE(TikTokIE):
         with sync_playwright() as p:
             browser = p.firefox.launch()
             page = browser.new_page()
-            page.goto('https://tiktok.com', wait_until='load')
+            page.goto('https://tiktok.com', wait_until='load', timeout=0)
             time.sleep(2)  # it just works ok
             for i in itertools.count(1):
                 x_tt_params = self._generate_x_tt_params(secUid, device_id, cursor)
