@@ -31,6 +31,10 @@ _____________________________________________________
 _____________________________________________________
 
 This fixes the **socket.timeout: The read operation timed out** problem with Tiktok.
+
+____________________________________________________
+
+**BIG SHOUT OUT AND THANKS TO USER REDRASKAL FOR PROVIDING THE CODE AND INITIAL IDEA. They're the ones on who the thanks should be falling on.
 ____________________________________________________
 
 <!-- MANPAGE: BEGIN EXCLUDED SECTION -->
