@@ -1,3 +1,5 @@
+# BROKEN AS OF 16-FEB-2023! WIP TO FIX THE ISSUE HTTP ERROR 400: BAD REQUEST
+##
 Hello, this is a temporary fix using Playwright. yt-dlp's devs still haven't rolled a solution in yt-dlp's self-contained philosophy, so while we wait for that we can use redraskal's solution.
 
 The reason I forked it is that I ran into some issues, the installation wasn't explained, and even after installing I found I had a few issues, which I fixed in this fork. That's it, enjoy.
